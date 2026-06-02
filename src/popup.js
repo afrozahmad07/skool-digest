@@ -133,14 +133,37 @@ async function runDigest() {
   }
 
   const providerName = PROVIDERS[settings.provider]?.name || 'AI';
+
+  // Validate community URL — must be set and point to skool.com
+  let communityUrl = settings.communityUrl?.trim();
+  if (!communityUrl || !communityUrl.includes('skool.com')) {
+    document.getElementById('digestBody').innerHTML = `
+      <div class="run-wrap">
+        <button class="run-btn" id="btnRun">Try Again</button>
+        <div class="error-box">No community URL set.\n\nGo to Settings and add your Skool community URL.\nExample: https://www.skool.com/your-community?s=newest</div>
+      </div>`;
+    document.getElementById('btnRun')?.addEventListener('click', runDigest);
+    isRunning = false;
+    return;
+  }
+
+  // Silently inject ?s=newest if missing so sort order is always correct
+  try {
+    const parsed = new URL(communityUrl);
+    if (parsed.searchParams.get('s') !== 'newest') {
+      parsed.searchParams.set('s', 'newest');
+      communityUrl = parsed.toString();
+    }
+  } catch { /* invalid URL caught above */ }
+
   setStatus('Loading community feed…');
 
   if (tab) {
     // Navigate existing Skool tab to community URL with newest sort
-    await chrome.tabs.update(tab.id, { active: true, url: settings.communityUrl });
+    await chrome.tabs.update(tab.id, { active: true, url: communityUrl });
   } else {
     // No Skool tab at all — open one
-    tab = await chrome.tabs.create({ url: settings.communityUrl });
+    tab = await chrome.tabs.create({ url: communityUrl });
   }
 
   // Wait for the page to fully load before scraping
