@@ -9,10 +9,30 @@ export const Storage = {
     return new Promise(resolve => chrome.storage.local.set(data, resolve));
   },
 
+  // ── Community key/name helpers ──
+  // Extracts slug from URL: https://www.skool.com/earlyaidopters?s=newest → "earlyaidopters"
+  communityKey(url) {
+    try {
+      const slug = new URL(url).pathname.replace(/\//g, '').trim();
+      return slug || 'default';
+    } catch {
+      return 'default';
+    }
+  },
+
+  communityName(url) {
+    try {
+      const slug = new URL(url).pathname.replace(/\//g, '').trim();
+      return slug || 'Unknown Community';
+    } catch {
+      return 'Unknown Community';
+    }
+  },
+
+  // ── Settings ──
   async getSettings() {
     const data = await this.get([
-      'provider', 'anthropicKey', 'openaiKey', 'geminiKey',
-      'watchedMembers', 'lastDigest', 'lastDigestDate',
+      'provider', 'anthropicKey', 'openaiKey', 'geminiKey', 'watchedMembers',
     ]);
     return {
       provider:       data.provider       || 'anthropic',
@@ -20,8 +40,6 @@ export const Storage = {
       openaiKey:      data.openaiKey      || '',
       geminiKey:      data.geminiKey      || '',
       watchedMembers: data.watchedMembers || [],
-      lastDigest:     data.lastDigest     || null,
-      lastDigestDate: data.lastDigestDate || null,
     };
   },
 
@@ -35,44 +53,63 @@ export const Storage = {
     });
   },
 
-  // Derive a safe storage key from a community URL
-  // e.g. https://www.skool.com/earlyaidopters?s=newest → "earlyaidopters"
-  communityKey(url) {
-    try {
-      const slug = new URL(url).pathname.replace(/\//g, '').trim();
-      return slug || 'default';
-    } catch {
-      return 'default';
-    }
-  },
-
-  // Extract a readable community name from URL
-  communityName(url) {
-    try {
-      const slug = new URL(url).pathname.replace(/\//g, '').trim();
-      return slug || url;
-    } catch {
-      return url || 'Unknown Community';
-    }
-  },
+  // ── Digest cache ──
+  // Each community gets its own cache slot keyed by slug.
+  // A "digestRegistry" array tracks all known slugs so we can enumerate them.
 
   async saveDigest(digest, pageUrl) {
-    const key = this.communityKey(pageUrl);
+    const key  = this.communityKey(pageUrl);
+    const name = this.communityName(pageUrl);
+
     digest._communityUrl  = pageUrl;
-    digest._communityName = this.communityName(pageUrl);
+    digest._communityName = name;
+    digest._savedAt       = Date.now();
+
+    // Update registry of known community keys
+    const { digestRegistry = [] } = await this.get(['digestRegistry']);
+    if (!digestRegistry.includes(key)) digestRegistry.push(key);
+
     await this.set({
       [`digest_${key}`]:     digest,
       [`digestDate_${key}`]: new Date().toDateString(),
+      digestRegistry,
     });
   },
 
   async getCachedDigest(pageUrl) {
     const key  = this.communityKey(pageUrl);
     const data = await this.get([`digest_${key}`, `digestDate_${key}`]);
-    if (data[`digestDate_${key}`] === new Date().toDateString() && data[`digest_${key}`]) {
+    const today = new Date().toDateString();
+    if (data[`digestDate_${key}`] === today && data[`digest_${key}`]) {
       return data[`digest_${key}`];
     }
     return null;
+  },
+
+  // Returns all cached digests generated today, sorted newest first
+  async getAllTodaysDigests() {
+    const { digestRegistry = [] } = await this.get(['digestRegistry']);
+    if (!digestRegistry.length) return [];
+
+    const keys = digestRegistry.flatMap(k => [`digest_${k}`, `digestDate_${k}`]);
+    const data = await this.get(keys);
+    const today = new Date().toDateString();
+
+    const results = [];
+    for (const k of digestRegistry) {
+      if (data[`digestDate_${k}`] === today && data[`digest_${k}`]) {
+        results.push(data[`digest_${k}`]);
+      }
+    }
+
+    // Sort by most recently saved
+    results.sort((a, b) => (b._savedAt || 0) - (a._savedAt || 0));
+    return results;
+  },
+
+  async clearCachedDigest(pageUrl) {
+    const key = this.communityKey(pageUrl);
+    await this.set({ [`digest_${key}`]: null, [`digestDate_${key}`]: null });
   },
 
   getActiveKey(settings) {

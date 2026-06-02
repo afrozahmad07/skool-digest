@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Skool Daily Digest",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "AI-powered daily briefing for your Skool community.",
   "permissions": [
     "storage",
@@ -15,6 +15,9 @@
     "https://api.openai.com/*",
     "https://generativelanguage.googleapis.com/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -38,15 +41,5 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "*"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+  }
 }

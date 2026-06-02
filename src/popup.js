@@ -66,11 +66,23 @@ function switchTab(name) {
 async function initDigest() {
   const key = Storage.getActiveKey(settings);
   if (!key) { showNoKey(); return; }
-  // Try to find an open Skool tab to check for a community-specific cache
-  const [skoolTab] = await chrome.tabs.query({ url: 'https://www.skool.com/*' });
-  const pageUrl = skoolTab?.url || '';
-  const cached = await Storage.getCachedDigest(pageUrl);
-  if (cached) { currentDigest = cached; renderDigest(cached, true); return; }
+
+  // 1. If the active tab is a Skool tab, show that community's cache
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (activeTab?.url?.includes('skool.com')) {
+    const cached = await Storage.getCachedDigest(activeTab.url);
+    if (cached) { currentDigest = cached; renderDigest(cached, true); return; }
+    showReady(); return;
+  }
+
+  // 2. Not on Skool — find most recently cached digest from any community today
+  const allDigests = await Storage.getAllTodaysDigests();
+  if (allDigests.length) {
+    currentDigest = allDigests[0];
+    renderDigest(allDigests[0], true);
+    return;
+  }
+
   showReady();
 }
 
@@ -100,10 +112,9 @@ function showReady() {
 }
 
 async function clearCache() {
-  const [skoolTab] = await chrome.tabs.query({ url: 'https://www.skool.com/*' });
-  const pageUrl = skoolTab?.url || '';
-  const key = Storage.communityKey(pageUrl);
-  await Storage.set({ [`digest_${key}`]: null, [`digestDate_${key}`]: null });
+  // Clear the cache for whichever community is currently shown
+  const pageUrl = currentDigest?._communityUrl || '';
+  if (pageUrl) await Storage.clearCachedDigest(pageUrl);
   currentDigest = null;
   showReady();
   switchTab('digest');
@@ -485,13 +496,39 @@ function addMember() {
 
 async function saveSettings() {
   if (_pendingProvider) { settings.provider = _pendingProvider; _pendingProvider = null; }
-  settings.anthropicKey = document.getElementById('inputAnthropic').value.trim();
-  settings.openaiKey    = document.getElementById('inputOpenAI').value.trim();
-  settings.geminiKey    = document.getElementById('inputGemini').value.trim();
+
+  const anthropicKey = document.getElementById('inputAnthropic').value.trim();
+  const openaiKey    = document.getElementById('inputOpenAI').value.trim();
+  const geminiKey    = document.getElementById('inputGemini').value.trim();
+
+  // Validate key formats — warn but still save
+  const warnings = [];
+  if (anthropicKey && !anthropicKey.startsWith('sk-ant-'))
+    warnings.push('Claude key should start with sk-ant-');
+  if (openaiKey && !openaiKey.startsWith('sk-'))
+    warnings.push('OpenAI key should start with sk-');
+  if (geminiKey && !geminiKey.startsWith('AIza'))
+    warnings.push('Gemini key should start with AIza');
+  if (anthropicKey.length > 200 || openaiKey.length > 200 || geminiKey.length > 200)
+    warnings.push('API key looks too long — double check it');
+
+  // Enforce max length before storing
+  settings.anthropicKey = anthropicKey.slice(0, 200);
+  settings.openaiKey    = openaiKey.slice(0, 200);
+  settings.geminiKey    = geminiKey.slice(0, 200);
+
   await Storage.saveSettings(settings);
-  const confirm = document.getElementById('saveConfirm');
-  confirm.style.opacity = '1';
-  setTimeout(() => confirm.style.opacity = '0', 2000);
+
+  const confirmEl = document.getElementById('saveConfirm');
+  if (warnings.length) {
+    confirmEl.textContent = '⚠ Saved — ' + warnings.join(' · ');
+    confirmEl.style.color = 'var(--gold)';
+  } else {
+    confirmEl.textContent = '✓ Saved';
+    confirmEl.style.color = '';
+  }
+  confirmEl.style.opacity = '1';
+  setTimeout(() => { confirmEl.style.opacity = '0'; confirmEl.style.color = ''; }, 3000);
 }
 
 function esc(str) {
