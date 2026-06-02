@@ -1,0 +1,213 @@
+// api.js — Multi-provider AI digest generation
+
+export const PROVIDERS = {
+  anthropic: { name: 'Claude Sonnet 4.6',        model: 'claude-sonnet-4-6' },
+  openai:    { name: 'GPT-5.5 (OpenAI)',          model: 'gpt-5.5' },
+  gemini:    { name: 'Gemini 2.5 Flash (Google)', model: 'gemini-2.5-flash' },
+};
+
+export async function generateDigest(posts, watchedMembers, apiKey, provider = 'anthropic') {
+  if (!apiKey) throw new Error(`No API key set for ${PROVIDERS[provider]?.name}. Go to Settings.`);
+  if (!posts?.length) throw new Error('No posts to analyze.');
+
+  // Trim posts before sending — remove heavy fields, cap body length
+  const trimmed = posts.slice(0, 30).map(p => ({
+    title:      (p.title    || '').slice(0, 300),
+    author:     (p.author   || '').slice(0, 60),
+    body:       (p.body     || '').slice(0, 300),
+    likes:      p.likes    || 0,
+    comments:   p.comments || 0,
+    timestamp:  p.timestamp || '',
+    category:   p.category  || '',
+    isPinned:   p.isPinned  || false,
+    postLink:   p.postLink  || '',
+    authorLink: p.authorLink || '',
+  }));
+
+  const { system, user } = buildPrompt(trimmed, watchedMembers);
+
+  let raw = '';
+  if (provider === 'anthropic')    raw = await callAnthropic(system, user, apiKey);
+  else if (provider === 'openai')  raw = await callOpenAI(system, user, apiKey);
+  else if (provider === 'gemini')  raw = await callGemini(system, user, apiKey);
+  else throw new Error('Unknown provider: ' + provider);
+
+  return parseJSON(raw, PROVIDERS[provider]?.name);
+}
+
+// ── Prompt ──
+function buildPrompt(posts, watchedMembers) {
+  const dateStr = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+
+  const system = `You are a community analyst for "Early AI-dopters" on Skool — entrepreneurs and builders exploring AI tools.
+
+You will receive a list of posts scraped from the community feed. Your job is to produce a daily briefing: ALL posts ranked by importance so the reader misses nothing.
+
+CRITICAL RULES:
+- "title" must be COPIED EXACTLY from the post data. Never invent or rewrite titles.
+- "likes" and "comments" must be COPIED EXACTLY from the post data numbers. Do not guess.
+- Include ALL posts in the ranked list — not just top picks. The reader wants a complete briefing.
+- Recency matters: posts timestamped "1h", "2h", "5h" rank higher than "2d", "6d"
+- Watched members always rank near the top regardless of engagement
+- "why_it_matters" must be specific to the actual post content, not generic
+
+IMPORTANT: Return ONLY a valid JSON object. No markdown. No explanation. Start with { end with }.
+
+Schema:
+{
+  "digest_date": "${dateStr}",
+  "total_posts_analyzed": <number — total posts you received>,
+  "quick_summary": "<3 sentences — specific topics discussed today>",
+  "trending_topics": ["<topic>", "<topic>", "<topic>"],
+  "posts_by_watched_members": <number>,
+  "all_posts": [
+    {
+      "rank": 1,
+      "title": "<EXACT title from post data — do not invent>",
+      "author": "<exact author name from post data>",
+      "author_link": "<postLink from post data, or empty string>",
+      "post_link": "<postLink from post data, or empty string>",
+      "why_it_matters": "<1-2 sentences specific to this post>",
+      "key_insight": "<single most valuable takeaway>",
+      "likes": <exact number from post data>,
+      "comments": <exact number from post data>,
+      "tags": ["<tag>"],
+      "is_watched_member": false,
+      "age": "<exact timestamp from post data like 1h or 2d>"
+    }
+  ]
+}`;
+
+  const user = `Today: ${dateStr}
+Watched members: ${watchedMembers.length ? watchedMembers.join(', ') : 'none'}
+Posts received: ${posts.length}
+
+Posts data:
+${JSON.stringify(posts, null, 1)}
+
+Return the complete JSON digest with ALL ${posts.length} posts in all_posts array, ranked by importance.`;
+
+  return { system, user };
+}
+
+// ── Robust JSON parser ──
+function parseJSON(raw, providerName) {
+  if (!raw?.trim()) throw new Error(`${providerName} returned an empty response. Try again.`);
+
+  const attempts = [
+    () => JSON.parse(raw),
+    () => JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()),
+    () => { const m = raw.match(/\{[\s\S]*\}/); if (m) return JSON.parse(m[0]); throw new Error(); },
+    () => JSON.parse(raw.slice(raw.indexOf('{'))),
+  ];
+
+  for (const fn of attempts) {
+    try { return fn(); } catch {}
+  }
+
+  throw new Error(`${providerName} returned malformed JSON. Try switching to Claude for more reliable output.`);
+}
+
+// ── Anthropic Claude ──
+async function callAnthropic(system, user, apiKey) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: PROVIDERS.anthropic.model,
+      max_tokens: 16000,
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: user }],
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error?.message || `Anthropic error ${res.status}`);
+  }
+  return (await res.json()).content?.[0]?.text || '';
+}
+
+// ── OpenAI ──
+async function callOpenAI(system, user, apiKey) {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: PROVIDERS.openai.model,
+      max_tokens: 16000,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error?.message || `OpenAI error ${res.status}`);
+  }
+  return (await res.json()).choices?.[0]?.message?.content || '';
+}
+
+// ── Google Gemini ──
+async function callGemini(system, user, apiKey) {
+  // Gemini 2.5 Flash has a "thinking" mode that outputs reasoning before JSON
+  // even with responseMimeType set. We use gemini-2.0-flash which is more
+  // predictable for structured output, falling back to 2.5-flash if needed.
+  const models = ['gemini-2.0-flash', 'gemini-2.5-flash'];
+  let lastError = null;
+
+  for (const model of models) {
+    try {
+      const raw = await callGeminiModel(model, system, user, apiKey);
+      return raw;
+    } catch(e) {
+      lastError = e;
+      // If it's an auth/rate error, don't retry with another model
+      if (e.message.includes('API key') || e.message.includes('rate limit')) throw e;
+    }
+  }
+  throw lastError;
+}
+
+async function callGeminiModel(model, system, user, apiKey) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: system }] },
+      contents: [{ role: 'user', parts: [{ text: user }] }],
+      generationConfig: {
+        maxOutputTokens: 16384,
+        temperature: 0.0,
+        responseMimeType: 'application/json',
+        // Disable thinking for gemini-2.5-flash to get clean JSON
+        ...(model === 'gemini-2.5-flash' ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    const msg = e?.error?.message || `Gemini error ${res.status}`;
+    if (res.status === 400 && msg.includes('API_KEY')) throw new Error('Invalid Gemini API key. Check Settings.');
+    if (res.status === 429) throw new Error('Gemini rate limit hit. Wait a moment and try again.');
+    // 404 means model not available in this region/tier — try next
+    if (res.status === 404) throw new Error(`Model ${model} not available`);
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  const candidate = data.candidates?.[0];
+  if (!candidate) throw new Error('Gemini returned no candidates.');
+  if (candidate.finishReason === 'SAFETY') throw new Error('Gemini flagged content. Try Claude instead.');
+
+  const text = candidate.content?.parts?.[0]?.text || '';
+  if (!text.trim()) throw new Error(`${model} returned empty response.`);
+  return text;
+}
