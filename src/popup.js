@@ -212,6 +212,13 @@ function clearStatusTimer() {
 // ── Render digest ──
 function renderDigest(digest, fromCache) {
   const posts = digest.all_posts || digest.top_posts || [];
+  const communityName = digest._communityName || '';
+  const communityUrl  = digest._communityUrl  || '';
+
+  // Update header community name dynamically
+  const headerSub = document.getElementById('headerCommunity');
+  if (headerSub && communityName) headerSub.textContent = communityName;
+
   const trending = (digest.trending_topics || [])
     .map(t => `<span class="tag">${esc(t)}</span>`).join('');
 
@@ -233,58 +240,57 @@ function renderDigest(digest, fromCache) {
         <div class="post-meta-top">
           <span class="rank">#${post.rank}</span>
           ${post.age ? `<span class="age-badge">${esc(post.age)}</span>` : ''}
-          ${post.is_watched_member ? `<span class="watched-badge">⭐ Watched</span>` : ''}
+          ${post.is_watched_member ? `<span class="watched-badge">★ Watched</span>` : ''}
         </div>
         <div class="post-title">${esc(post.title)}</div>
         <div class="post-why">${esc(post.why_it_matters)}</div>
-        <div class="post-insight">${esc(post.key_insight)}</div>
+        ${post.key_insight ? `<div class="post-insight">${esc(post.key_insight)}</div>` : ''}
         <div class="post-footer">
           <span class="post-author">by ${authorHtml}</span>
           <span class="engagement">
             <span class="eng-pill">
-              <svg viewBox="0 0 14 14" fill="none" width="11" height="11"><path d="M2 9C2 9 1 8 1 6C1 4 2.5 2.5 4.5 2.5C5.5 2.5 6.3 3 7 4C7.7 3 8.5 2.5 9.5 2.5C11.5 2.5 13 4 13 6C13 8 7 12.5 7 12.5C7 12.5 2 9 2 9Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              <svg viewBox="0 0 14 14" fill="none" width="10" height="10"><path d="M2 9C2 9 1 8 1 6C1 4 2.5 2.5 4.5 2.5C5.5 2.5 6.3 3 7 4C7.7 3 8.5 2.5 9.5 2.5C11.5 2.5 13 4 13 6C13 8 7 12.5 7 12.5C7 12.5 2 9 2 9Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
               ${likes}
             </span>
             <span class="eng-pill">
-              <svg viewBox="0 0 14 14" fill="none" width="11" height="11"><path d="M2 2h10v8H8.5L7 12l-1.5-2H2V2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              <svg viewBox="0 0 14 14" fill="none" width="10" height="10"><path d="M2 2h10v8H8.5L7 12l-1.5-2H2V2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
               ${comments}
             </span>
           </span>
           ${readLink}
         </div>
-        ${tags ? `<div class="tags" style="margin-top:7px">${tags}</div>` : ''}
+        ${tags ? `<div class="tags" style="margin-top:8px">${tags}</div>` : ''}
       </div>`;
   }).join('');
 
-  const communityName = digest._communityName || '';
-  const communityUrl  = digest._communityUrl  || '';
+  const watchedCount = digest.posts_by_watched_members || 0;
+  const totalScanned = digest.total_posts_analyzed || posts.length;
+  const metaParts = [`${totalScanned} posts`];
+  if (watchedCount) metaParts.push(`${watchedCount} watched`);
+  if (communityName) metaParts.push(communityName);
 
   document.getElementById('digestBody').innerHTML = `
-    ${fromCache ? `<div class="cache-notice">Cached · <a id="linkFresh" href="#">Run fresh</a></div>` : ''}
+    ${fromCache ? `<div class="cache-notice">Showing cached digest · <a id="linkFresh" href="#">Run fresh</a></div>` : ''}
     <div class="digest-header">
-      ${communityName ? `<div class="digest-date" style="margin-bottom:3px">🏘 <a href="${esc(communityUrl)}" target="_blank" style="color:var(--accent);text-decoration:none">${esc(communityName)}</a></div>` : ''}
-      <div class="digest-date">📅 ${esc(digest.digest_date || '')}</div>
+      ${communityName ? `<div class="digest-community"><a href="${esc(communityUrl)}" target="_blank">${esc(communityName)}</a></div>` : ''}
+      <div class="digest-date">${esc(digest.digest_date || '')}</div>
       <div class="summary">${esc(digest.quick_summary || '')}</div>
-      <div class="stats-row">
-        <span class="stat-chip">📊 ${digest.total_posts_analyzed || posts.length} scanned</span>
-        <span class="stat-chip">📋 ${posts.length} in digest</span>
-        <span class="stat-chip">⭐ ${digest.posts_by_watched_members || 0} watched</span>
-      </div>
+      <div class="digest-meta">${metaParts.join(' · ')}</div>
     </div>
 
     <div class="export-row">
-      <button class="export-btn" id="btnOpenHtml" title="Open as styled HTML in new tab">
-        <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M3 2l-2 5 2 5M11 2l2 5-2 5M6 11.5l2-9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <button class="export-btn" id="btnOpenHtml">
+        <svg viewBox="0 0 14 14" fill="none" width="11" height="11"><path d="M3 2l-2 5 2 5M11 2l2 5-2 5M6 11.5l2-9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
         Open HTML
       </button>
-      <button class="export-btn" id="btnCopyMd" title="Copy Markdown to clipboard (for Notion / Obsidian)">
-        <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><rect x="4" y="4" width="8" height="9" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 10V2h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-        Copy MD
+      <button class="export-btn" id="btnCopyMd">
+        <svg viewBox="0 0 14 14" fill="none" width="11" height="11"><rect x="4" y="4" width="8" height="9" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 10V2h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Copy Markdown
       </button>
     </div>
 
-    ${trending ? `<div class="section-label">Trending</div><div class="tags">${trending}</div>` : ''}
-    <div class="section-label">All Posts · Ranked by Importance</div>
+    ${trending ? `<div class="section-divider">Trending</div><div class="tags">${trending}</div>` : ''}
+    <div class="section-divider">All posts · ranked by importance</div>
     ${postsHtml || '<div class="empty-text">No posts to show.</div>'}
   `;
 
@@ -345,14 +351,12 @@ function buildHTML(digest) {
   const posts = digest.all_posts || digest.top_posts || [];
   const dark = isDark;
 
-  const bg      = dark ? '#0d0d0f' : '#f8f8f5';
-  const surface = dark ? '#141418' : '#ffffff';
-  const border  = dark ? '#2a2a33' : '#e2e2e8';
-  const text     = dark ? '#e8e8ee' : '#1a1a24';
-  const muted    = dark ? '#6b6b7d' : '#8888a0';
-  const accent   = '#c8f561';
-  const accentDark = '#5a7a1a';
-  const accentText = dark ? accent : accentDark;
+  const bg         = dark ? '#111110' : '#faf9f6';
+  const surface    = dark ? '#1c1c1a' : '#ffffff';
+  const border     = dark ? '#2e2e2b' : '#e8e6e0';
+  const text       = dark ? '#eeedea' : '#1c1b18';
+  const muted      = dark ? '#90908a' : '#8a8880';
+  const accentText = dark ? '#c8f561' : '#4a6b10';
 
   let html = `<!DOCTYPE html>
 <html lang="en">
@@ -361,47 +365,45 @@ function buildHTML(digest) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${digest._communityName ? esc(digest._communityName) + ' — ' : ''}Skool Digest — ${digest.digest_date || ''}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: ${bg}; color: ${text}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 760px; margin: 0 auto; padding: 32px 20px; line-height: 1.6; }
-  h1 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
-  .summary { font-size: 15px; color: ${muted}; margin-bottom: 16px; line-height: 1.7; }
-  .trending { font-size: 13px; color: ${muted}; margin-bottom: 28px; }
+  body { background: ${bg}; color: ${text}; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; max-width: 680px; margin: 0 auto; padding: 40px 24px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .community { font-size: 11px; font-weight: 600; color: ${accentText}; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 4px; }
+  .community a { color: inherit; text-decoration: none; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 4px; color: ${text}; }
+  .date { font-size: 12px; color: ${muted}; margin-bottom: 12px; }
+  .summary { font-size: 14px; color: ${text}; opacity: .75; margin-bottom: 8px; line-height: 1.7; }
+  .meta { font-size: 12px; color: ${muted}; margin-bottom: 28px; }
+  .trending { font-size: 12px; color: ${muted}; margin-bottom: 28px; }
   .trending strong { color: ${text}; }
-  hr { border: none; border-top: 1px solid ${border}; margin: 24px 0; }
-  .post { background: ${surface}; border: 1px solid ${border}; border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
-  .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; color: ${muted}; }
-  .rank { background: ${border}; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 11px; }
-  .age { background: ${border}; padding: 2px 8px; border-radius: 4px; }
-  h2 { font-size: 17px; font-weight: 700; margin-bottom: 8px; line-height: 1.4; color: ${text}; }
-  .why { font-size: 14px; color: ${muted}; margin-bottom: 10px; }
-  blockquote { border-left: 3px solid ${accentText}; padding-left: 14px; font-style: italic; color: ${accentText}; font-size: 14px; margin-bottom: 12px; }
-  .post-footer { display: flex; align-items: center; gap: 14px; font-size: 13px; flex-wrap: wrap; }
-  .author { color: ${muted}; }
-  .author a { color: ${accentText}; text-decoration: none; }
-  .eng { display: flex; gap: 8px; color: ${muted}; }
-  .read-link { color: ${accentText}; text-decoration: none; font-weight: 600; border: 1px solid ${border}; padding: 3px 10px; border-radius: 6px; }
-  .read-link:hover { background: ${border}; }
+  .section-label { font-size: 11px; font-weight: 500; color: ${muted}; margin: 24px 0 14px; padding-bottom: 8px; border-bottom: 1px solid ${border}; }
+  .post { background: ${surface}; border: 1px solid ${border}; border-radius: 12px; padding: 20px 22px; margin-bottom: 12px; }
+  .post-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: ${muted}; }
+  .rank { font-weight: 600; }
+  .age { background: ${border}; padding: 1px 7px; border-radius: 4px; }
+  h2 { font-size: 15px; font-weight: 600; margin-bottom: 6px; line-height: 1.45; color: ${text}; letter-spacing: -.01em; }
+  .why { font-size: 13px; color: ${muted}; margin-bottom: 10px; line-height: 1.65; }
+  blockquote { border-left: 2px solid ${accentText}; padding-left: 12px; font-style: italic; color: ${text}; opacity: .7; font-size: 12px; margin-bottom: 12px; line-height: 1.6; }
+  .post-footer { display: flex; align-items: center; gap: 12px; font-size: 11px; color: ${muted}; flex-wrap: wrap; }
+  .author a { color: ${text}; text-decoration: none; opacity: .7; }
+  .read-link { color: ${accentText}; text-decoration: none; font-weight: 500; border: 1px solid ${border}; padding: 2px 10px; border-radius: 4px; margin-left: auto; }
   .tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 5px; }
   .tag { font-size: 11px; padding: 2px 8px; background: ${border}; border-radius: 4px; color: ${muted}; }
-  .stats { display: flex; gap: 12px; font-size: 12px; color: ${muted}; margin-bottom: 24px; flex-wrap: wrap; }
-  .stat { background: ${surface}; border: 1px solid ${border}; padding: 4px 12px; border-radius: 20px; }
 </style>
 </head>
 <body>
-<h1>${digest._communityName ? `<span style="color:${accentText}">${digest._communityName}</span> · ` : ''}${digest.digest_date || ''}</h1>
+${digest._communityName ? `<div class="community"><a href="${digest._communityUrl || '#'}">${digest._communityName}</a></div>` : ''}
+<h1>Daily Digest</h1>
+<div class="date">${digest.digest_date || ''}</div>
 <p class="summary">${digest.quick_summary || ''}</p>
+<div class="meta">${digest.total_posts_analyzed || posts.length} posts${digest.posts_by_watched_members ? ` · ${digest.posts_by_watched_members} watched` : ''}</div>
 `;
 
   if (digest.trending_topics?.length) {
     html += `<p class="trending"><strong>Trending:</strong> ${digest.trending_topics.join(' &nbsp;·&nbsp; ')}</p>\n`;
   }
 
-  const totalPosts = digest.total_posts_analyzed || posts.length;
-  html += `<div class="stats">
-  <span class="stat">📊 ${totalPosts} posts scanned</span>
-  <span class="stat">📋 ${posts.length} in digest</span>
-  <span class="stat">⭐ ${digest.posts_by_watched_members || 0} watched</span>
-</div>\n<hr>\n`;
+  html += `<div class="section-label">All posts · ranked by importance</div>\n`;
 
   posts.forEach(post => {
     const likes    = post.likes    ?? post.engagement?.likes    ?? 0;
@@ -417,15 +419,15 @@ function buildHTML(digest) {
   <div class="post-header">
     <span class="rank">#${esc(String(post.rank))}</span>
     ${post.age ? `<span class="age">${esc(post.age)}</span>` : ''}
-    ${post.is_watched_member ? `<span class="age" style="color:${accentText}">⭐ Watched</span>` : ''}
+    ${post.is_watched_member ? `<span class="age" style="color:${accentText}">★ Watched</span>` : ''}
   </div>
   <h2>${esc(post.title)}</h2>
   <p class="why">${esc(post.why_it_matters || '')}</p>
   ${post.key_insight ? `<blockquote>${esc(post.key_insight)}</blockquote>` : ''}
   <div class="post-footer">
     <span class="author">by ${authorHtml}</span>
-    <span class="eng">👍 ${likes} &nbsp; 💬 ${comments}</span>
-    ${safePostLink ? `<a href="${safePostLink}" class="read-link" target="_blank" rel="noopener noreferrer">Read post →</a>` : ''}
+    <span>👍 ${likes} &nbsp; 💬 ${comments}</span>
+    ${safePostLink ? `<a href="${safePostLink}" class="read-link" target="_blank" rel="noopener noreferrer">Read →</a>` : ''}
   </div>
   ${tags ? `<div class="tags">${tags}</div>` : ''}
 </div>\n`;
