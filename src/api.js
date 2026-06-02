@@ -74,15 +74,16 @@ function buildPrompt(posts, watchedMembers) {
 
   const system = `You are a community analyst for "Early AI-dopters" on Skool — entrepreneurs and builders exploring AI tools.
 
-You will receive a list of posts scraped from the community feed. Your job is to produce a daily briefing: ALL posts ranked by importance so the reader misses nothing.
+You will receive a list of posts scraped from the community feed. Produce a daily briefing with ALL posts ranked by importance so the reader misses nothing.
 
 CRITICAL RULES:
 - "title" must be COPIED EXACTLY from the post data. Never invent or rewrite titles.
 - "likes" and "comments" must be COPIED EXACTLY from the post data numbers. Do not guess.
-- Include ALL posts in the ranked list — not just top picks. The reader wants a complete briefing.
+- Include ALL posts in the ranked list — not just top picks.
 - Recency matters: posts timestamped "1h", "2h", "5h" rank higher than "2d", "6d"
 - Watched members always rank near the top regardless of engagement
-- "why_it_matters" must be specific to the actual post content, not generic
+- "why_it_matters": 1 crisp sentence about what this post actually contains — NO mentions of watched status, engagement numbers, or who the author is. Focus only on the content value.
+- "key_insight": the single most actionable or interesting takeaway from this post. Be specific, not generic.
 
 IMPORTANT: Return ONLY a valid JSON object. No markdown. No explanation. Start with { end with }.
 
@@ -90,7 +91,7 @@ Schema:
 {
   "digest_date": "${dateStr}",
   "total_posts_analyzed": <number — total posts you received>,
-  "quick_summary": "<3 sentences — specific topics discussed today>",
+  "quick_summary": "<2-3 sentences — what topics are hot today, be specific>",
   "trending_topics": ["<topic>", "<topic>", "<topic>"],
   "posts_by_watched_members": <number>,
   "all_posts": [
@@ -98,9 +99,9 @@ Schema:
       "rank": 1,
       "title": "<EXACT title from post data — do not invent>",
       "author": "<exact author name from post data>",
-      "author_link": "<postLink from post data, or empty string>",
+      "author_link": "<authorLink from post data, or empty string>",
       "post_link": "<postLink from post data, or empty string>",
-      "why_it_matters": "<1-2 sentences specific to this post>",
+      "why_it_matters": "<1 sentence about the content value — no author praise, no watched-member mentions>",
       "key_insight": "<single most valuable takeaway>",
       "likes": <exact number from post data>,
       "comments": <exact number from post data>,
