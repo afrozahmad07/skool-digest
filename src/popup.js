@@ -137,6 +137,7 @@ async function runDigest() {
     }
   }
 
+  const providerName = PROVIDERS[settings.provider]?.name || 'AI';
   setStatus('Scanning feed…');
 
   try {
