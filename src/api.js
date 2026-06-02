@@ -82,8 +82,10 @@ CRITICAL RULES:
 - Include ALL posts in the ranked list — not just top picks.
 - Recency matters: posts timestamped "1h", "2h", "5h" rank higher than "2d", "6d"
 - Watched members always rank near the top regardless of engagement
-- "why_it_matters": 1 crisp sentence about what this post actually contains — NO mentions of watched status, engagement numbers, or who the author is. Focus only on the content value.
-- "key_insight": the single most actionable or interesting takeaway from this post. Be specific, not generic.
+- "why_it_matters": MAX 15 words. What is this post specifically about? No filler, no author mentions, no "this post...". Start with the topic directly. Example: "Step-by-step walkthrough for automating WhatsApp replies using Claude."
+- "key_insight": MAX 20 words. The single most actionable takeaway. Be concrete. Example: "Use Claude's tool_use feature to route messages without a backend server."
+- "quick_summary": 2 sentences max. Name the 2-3 most interesting specific topics — not vague themes.
+- "tags": 2-3 tags max, lowercase, specific (e.g. "claude api", "lead gen", "n8n") not generic ("ai", "tools")
 
 IMPORTANT: Return ONLY a valid JSON object. No markdown. No explanation. Start with { end with }.
 
@@ -91,8 +93,8 @@ Schema:
 {
   "digest_date": "${dateStr}",
   "total_posts_analyzed": <number — total posts you received>,
-  "quick_summary": "<2-3 sentences — what topics are hot today, be specific>",
-  "trending_topics": ["<topic>", "<topic>", "<topic>"],
+  "quick_summary": "<2 sentences max — specific topics only>",
+  "trending_topics": ["<specific topic>", "<specific topic>", "<specific topic>"],
   "posts_by_watched_members": <number>,
   "all_posts": [
     {

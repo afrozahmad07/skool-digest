@@ -134,16 +134,19 @@ function extractPost(el) {
   // ── Title — scan links first (post titles are clickable), then headings ──
   let title = '';
 
+  // Noise patterns that must never become a title
+  const titleNoise = /^(new comment|pinned|discussion|sharing is caring|loom bites|your intro|wins|\d+[hmd]? ago)/i;
+
   // Strategy A: find a link with substantial text that isn't the author and goes deeper into the site
   for (const a of links) {
     const t = (a.textContent || '').trim();
-    // Must be meaningful length, not the author name, not a bare URL, not just numbers
     if (
       t.length > 15 &&
       t.length < 400 &&
       t !== author &&
       !/^https?:\/\//.test(t) &&
       !/^\d+$/.test(t) &&
+      !titleNoise.test(t) &&
       a.href.split('/').length >= 5
     ) {
       title = t;
@@ -163,8 +166,8 @@ function extractPost(el) {
       t = t.replace(/^[\p{Emoji}\s]+/u, '').trim();
       // Strip trailing category suffix "• Sharing Is Caring" etc.
       t = t.replace(/\s*[•·]\s*(Sharing Is Caring|Discussion|Loom Bites|Your Intro!|Wins)\s*$/i, '').trim();
-      // Skip if what's left is still just the author name or too short
-      if (t && t.length > 8 && t.length < 400 && t !== author && !/^\d+$/.test(t)) {
+      // Skip if what's left is still just the author name, too short, or noise
+      if (t && t.length > 8 && t.length < 400 && t !== author && !/^\d+$/.test(t) && !titleNoise.test(t)) {
         title = t;
         break;
       }

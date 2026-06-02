@@ -273,15 +273,11 @@ function renderDigest(digest, fromCache) {
     </div>
 
     <div class="export-row">
-      <button class="export-btn" id="btnOpenMd" title="Open as Markdown in new tab">
-        <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><rect x="2" y="2" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 9V5l2 2 2-2v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Open .md
-      </button>
-      <button class="export-btn" id="btnOpenHtml" title="Open as HTML in new tab">
+      <button class="export-btn" id="btnOpenHtml" title="Open as styled HTML in new tab">
         <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><path d="M3 2l-2 5 2 5M11 2l2 5-2 5M6 11.5l2-9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-        Open .html
+        Open HTML
       </button>
-      <button class="export-btn" id="btnCopyMd" title="Copy Markdown to clipboard">
+      <button class="export-btn" id="btnCopyMd" title="Copy Markdown to clipboard (for Notion / Obsidian)">
         <svg viewBox="0 0 14 14" fill="none" width="12" height="12"><rect x="4" y="4" width="8" height="9" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 10V2h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
         Copy MD
       </button>
@@ -295,7 +291,6 @@ function renderDigest(digest, fromCache) {
   if (fromCache) {
     document.getElementById('linkFresh')?.addEventListener('click', e => { e.preventDefault(); clearCache(); });
   }
-  document.getElementById('btnOpenMd')?.addEventListener('click',   () => openInTab(digest, 'md'));
   document.getElementById('btnOpenHtml')?.addEventListener('click', () => openInTab(digest, 'html'));
   document.getElementById('btnCopyMd')?.addEventListener('click',   () => copyToClipboard(digest));
 }
@@ -321,7 +316,8 @@ function copyToClipboard(digest) {
 // ── Build Markdown ──
 function buildMarkdown(digest) {
   const posts = digest.all_posts || digest.top_posts || [];
-  let md = `# Skool Daily Digest — ${digest.digest_date || ''}\n\n`;
+  const community = digest._communityName ? ` · ${digest._communityName}` : '';
+  let md = `# Skool Daily Digest${community} — ${digest.digest_date || ''}\n\n`;
   md += `${digest.quick_summary || ''}\n\n`;
   if (digest.trending_topics?.length) {
     md += `**Trending:** ${digest.trending_topics.join(' · ')}\n\n`;
@@ -363,7 +359,7 @@ function buildHTML(digest) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Skool Digest — ${digest.digest_date || ''}</title>
+<title>${digest._communityName ? esc(digest._communityName) + ' — ' : ''}Skool Digest — ${digest.digest_date || ''}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: ${bg}; color: ${text}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 760px; margin: 0 auto; padding: 32px 20px; line-height: 1.6; }
@@ -392,7 +388,7 @@ function buildHTML(digest) {
 </style>
 </head>
 <body>
-<h1>Skool Daily Digest — ${digest.digest_date || ''}</h1>
+<h1>${digest._communityName ? `<span style="color:${accentText}">${digest._communityName}</span> · ` : ''}${digest.digest_date || ''}</h1>
 <p class="summary">${digest.quick_summary || ''}</p>
 `;
 
@@ -429,7 +425,7 @@ function buildHTML(digest) {
   <div class="post-footer">
     <span class="author">by ${authorHtml}</span>
     <span class="eng">👍 ${likes} &nbsp; 💬 ${comments}</span>
-    ${safePostLink ? `<a href="${safePostLink}" class="read-link">Read post →</a>` : ''}
+    ${safePostLink ? `<a href="${safePostLink}" class="read-link" target="_blank" rel="noopener noreferrer">Read post →</a>` : ''}
   </div>
   ${tags ? `<div class="tags">${tags}</div>` : ''}
 </div>\n`;
