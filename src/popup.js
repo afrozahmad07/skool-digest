@@ -90,7 +90,7 @@ function showReady() {
       </button>
       <div class="status-bar">
         <span class="dot"></span>
-        <span>Using <strong>${esc(providerName)}</strong> · Will auto-navigate to newest feed</span>
+        <span>Using <strong>${esc(providerName)}</strong> · Sort feed by New / Top / Unread first, then Generate</span>
       </div>
     </div>`;
   document.getElementById('btnRun').addEventListener('click', runDigest);
@@ -103,72 +103,33 @@ async function clearCache() {
   switchTab('digest');
 }
 
-// ── Wait for a tab to finish loading ──
-function waitForTabLoad(tabId) {
-  return new Promise(resolve => {
-    // If already complete, resolve immediately
-    chrome.tabs.get(tabId, t => {
-      if (t?.status === 'complete') { resolve(); return; }
-    });
-    const listener = (id, info) => {
-      if (id === tabId && info.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
-    };
-    chrome.tabs.onUpdated.addListener(listener);
-  });
-}
-
 // ── Run digest ──
 async function runDigest() {
   if (isRunning) return;
   isRunning = true;
 
-  // Find an existing Skool tab or create one, then navigate to community feed sorted by newest
+  // Use active tab if it's Skool, otherwise find any open Skool tab
   let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url?.includes('skool.com')) {
     const [skoolTab] = await chrome.tabs.query({ url: 'https://www.skool.com/*' });
-    tab = skoolTab || null;
-  }
-
-  const providerName = PROVIDERS[settings.provider]?.name || 'AI';
-
-  // Validate community URL — must be set and point to skool.com
-  let communityUrl = settings.communityUrl?.trim();
-  if (!communityUrl || !communityUrl.includes('skool.com')) {
-    document.getElementById('digestBody').innerHTML = `
-      <div class="run-wrap">
-        <button class="run-btn" id="btnRun">Try Again</button>
-        <div class="error-box">No community URL set.\n\nGo to Settings and add your Skool community URL.\nExample: https://www.skool.com/your-community?s=newest</div>
-      </div>`;
-    document.getElementById('btnRun')?.addEventListener('click', runDigest);
-    isRunning = false;
-    return;
-  }
-
-  // Silently inject ?s=newest if missing so sort order is always correct
-  try {
-    const parsed = new URL(communityUrl);
-    if (parsed.searchParams.get('s') !== 'newest') {
-      parsed.searchParams.set('s', 'newest');
-      communityUrl = parsed.toString();
+    if (skoolTab) {
+      tab = skoolTab;
+      await chrome.tabs.update(skoolTab.id, { active: true });
+    } else {
+      document.getElementById('digestBody').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">👆</div>
+          <div class="empty-title">Open Skool First</div>
+          <div class="empty-text">No Skool tab found. Open your community feed, sort it how you want (New / Top / Unread), then hit Generate.</div>
+          <button class="run-btn" style="margin-top:12px" id="btnOpenSkool">Open Skool</button>
+        </div>`;
+      document.getElementById('btnOpenSkool')?.addEventListener('click', () =>
+        chrome.tabs.create({ url: 'https://www.skool.com' })
+      );
+      isRunning = false;
+      return;
     }
-  } catch { /* invalid URL caught above */ }
-
-  setStatus('Loading community feed…');
-
-  if (tab) {
-    // Navigate existing Skool tab to community URL with newest sort
-    await chrome.tabs.update(tab.id, { active: true, url: communityUrl });
-  } else {
-    // No Skool tab at all — open one
-    tab = await chrome.tabs.create({ url: communityUrl });
   }
-
-  // Wait for the page to fully load before scraping
-  setStatus('Waiting for feed to load…');
-  await waitForTabLoad(tab.id);
 
   setStatus('Scanning feed…');
 
@@ -476,7 +437,6 @@ function setupSettings() {
   document.getElementById('inputAnthropic').value = settings.anthropicKey || '';
   document.getElementById('inputOpenAI').value    = settings.openaiKey    || '';
   document.getElementById('inputGemini').value    = settings.geminiKey    || '';
-  document.getElementById('inputCommunity').value = settings.communityUrl || '';
   renderMembers();
 }
 
@@ -516,7 +476,6 @@ async function saveSettings() {
   settings.anthropicKey = document.getElementById('inputAnthropic').value.trim();
   settings.openaiKey    = document.getElementById('inputOpenAI').value.trim();
   settings.geminiKey    = document.getElementById('inputGemini').value.trim();
-  settings.communityUrl = document.getElementById('inputCommunity').value.trim();
   await Storage.saveSettings(settings);
   const confirm = document.getElementById('saveConfirm');
   confirm.style.opacity = '1';

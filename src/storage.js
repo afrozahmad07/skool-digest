@@ -12,7 +12,7 @@ export const Storage = {
   async getSettings() {
     const data = await this.get([
       'provider', 'anthropicKey', 'openaiKey', 'geminiKey',
-      'watchedMembers', 'communityUrl', 'lastDigest', 'lastDigestDate',
+      'watchedMembers', 'lastDigest', 'lastDigestDate',
     ]);
     return {
       provider:       data.provider       || 'anthropic',
@@ -20,7 +20,6 @@ export const Storage = {
       openaiKey:      data.openaiKey      || '',
       geminiKey:      data.geminiKey      || '',
       watchedMembers: data.watchedMembers || [],
-      communityUrl:   data.communityUrl   || 'https://www.skool.com/earlyaidopters?c=&s=newest&fl=',
       lastDigest:     data.lastDigest     || null,
       lastDigestDate: data.lastDigestDate || null,
     };
@@ -33,7 +32,6 @@ export const Storage = {
       openaiKey:      s.openaiKey,
       geminiKey:      s.geminiKey,
       watchedMembers: s.watchedMembers,
-      communityUrl:   s.communityUrl,
     });
   },
 

@@ -47,9 +47,9 @@ This extension is not on the Chrome Web Store. Install it manually:
 
 ## Usage
 
-1. Navigate to your Skool community feed (`https://www.skool.com/your-community`)
-2. Set the feed sort to **New** for best results
-3. Click the extension icon → hit **Generate Feed Digest**
+1. Open your Skool community feed in any tab
+2. Sort the feed however you want — **New**, **Top**, or **Unread** — the extension scrapes whatever is on screen
+3. Click the extension icon from any tab → hit **Generate Feed Digest**
 4. The AI analyses all visible posts and returns a ranked digest in ~5–15 seconds
 
 ---
