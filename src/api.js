@@ -32,7 +32,38 @@ export async function generateDigest(posts, watchedMembers, apiKey, provider = '
   else if (provider === 'gemini')  raw = await callGemini(system, user, apiKey);
   else throw new Error('Unknown provider: ' + provider);
 
-  return parseJSON(raw, PROVIDERS[provider]?.name);
+  const digest = parseJSON(raw, PROVIDERS[provider]?.name);
+  enforceWatchedMembers(digest, watchedMembers);
+  return digest;
+}
+
+// ── Enforce watched members in post-processing (AI matching is unreliable) ──
+// Uses case-insensitive partial match so "Mark" matches "Mark Kashef" and vice versa
+function enforceWatchedMembers(digest, watchedMembers) {
+  if (!watchedMembers?.length || !digest?.all_posts?.length) return;
+
+  const watched = watchedMembers.map(n => n.toLowerCase().trim());
+
+  const isWatched = (author = '') => {
+    const a = author.toLowerCase().trim();
+    return watched.some(w => a.includes(w) || w.includes(a));
+  };
+
+  // Flag any missed watched members
+  digest.all_posts.forEach(post => {
+    if (isWatched(post.author)) post.is_watched_member = true;
+  });
+
+  // Re-sort: watched members float to the top, preserving their relative order
+  const watchedPosts   = digest.all_posts.filter(p => p.is_watched_member);
+  const unwatchedPosts = digest.all_posts.filter(p => !p.is_watched_member);
+  digest.all_posts = [...watchedPosts, ...unwatchedPosts];
+
+  // Re-number ranks after re-sort
+  digest.all_posts.forEach((p, i) => p.rank = i + 1);
+
+  // Update the watched count
+  digest.posts_by_watched_members = watchedPosts.length;
 }
 
 // ── Prompt ──
