@@ -35,14 +35,42 @@ export const Storage = {
     });
   },
 
-  async saveDigest(digest) {
-    await this.set({ lastDigest: digest, lastDigestDate: new Date().toDateString() });
+  // Derive a safe storage key from a community URL
+  // e.g. https://www.skool.com/earlyaidopters?s=newest → "earlyaidopters"
+  communityKey(url) {
+    try {
+      const slug = new URL(url).pathname.replace(/\//g, '').trim();
+      return slug || 'default';
+    } catch {
+      return 'default';
+    }
   },
 
-  async getCachedDigest() {
-    const data = await this.get(['lastDigest', 'lastDigestDate']);
-    if (data.lastDigestDate === new Date().toDateString() && data.lastDigest) {
-      return data.lastDigest;
+  // Extract a readable community name from URL
+  communityName(url) {
+    try {
+      const slug = new URL(url).pathname.replace(/\//g, '').trim();
+      return slug || url;
+    } catch {
+      return url || 'Unknown Community';
+    }
+  },
+
+  async saveDigest(digest, pageUrl) {
+    const key = this.communityKey(pageUrl);
+    digest._communityUrl  = pageUrl;
+    digest._communityName = this.communityName(pageUrl);
+    await this.set({
+      [`digest_${key}`]:     digest,
+      [`digestDate_${key}`]: new Date().toDateString(),
+    });
+  },
+
+  async getCachedDigest(pageUrl) {
+    const key  = this.communityKey(pageUrl);
+    const data = await this.get([`digest_${key}`, `digestDate_${key}`]);
+    if (data[`digestDate_${key}`] === new Date().toDateString() && data[`digest_${key}`]) {
+      return data[`digest_${key}`];
     }
     return null;
   },

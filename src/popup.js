@@ -66,7 +66,10 @@ function switchTab(name) {
 async function initDigest() {
   const key = Storage.getActiveKey(settings);
   if (!key) { showNoKey(); return; }
-  const cached = await Storage.getCachedDigest();
+  // Try to find an open Skool tab to check for a community-specific cache
+  const [skoolTab] = await chrome.tabs.query({ url: 'https://www.skool.com/*' });
+  const pageUrl = skoolTab?.url || '';
+  const cached = await Storage.getCachedDigest(pageUrl);
   if (cached) { currentDigest = cached; renderDigest(cached, true); return; }
   showReady();
 }
@@ -97,7 +100,10 @@ function showReady() {
 }
 
 async function clearCache() {
-  await Storage.set({ lastDigest: null, lastDigestDate: null });
+  const [skoolTab] = await chrome.tabs.query({ url: 'https://www.skool.com/*' });
+  const pageUrl = skoolTab?.url || '';
+  const key = Storage.communityKey(pageUrl);
+  await Storage.set({ [`digest_${key}`]: null, [`digestDate_${key}`]: null });
   currentDigest = null;
   showReady();
   switchTab('digest');
@@ -136,8 +142,9 @@ async function runDigest() {
   try {
     // content.js is already injected via manifest content_scripts — no need to re-inject
     const result = await chrome.tabs.sendMessage(tab.id, { action: 'scrapePosts' });
-    const posts = result?.posts || [];
-    const debug = result?.debug || [];
+    const posts   = result?.posts   || [];
+    const debug   = result?.debug   || [];
+    const pageUrl = result?.pageUrl || tab.url || '';
 
     if (posts.length === 0) {
       throw new Error(`No posts found.\nDebug: ${debug.join(' | ')}\n\nMake sure you are on the community feed page.`);
@@ -149,7 +156,7 @@ async function runDigest() {
     const digest = await generateDigest(posts, settings.watchedMembers, apiKey, settings.provider);
 
     currentDigest = digest;
-    await Storage.saveDigest(digest);
+    await Storage.saveDigest(digest, pageUrl);
     clearStatusTimer();
     renderDigest(digest, false);
 
@@ -237,9 +244,13 @@ function renderDigest(digest, fromCache) {
       </div>`;
   }).join('');
 
+  const communityName = digest._communityName || '';
+  const communityUrl  = digest._communityUrl  || '';
+
   document.getElementById('digestBody').innerHTML = `
     ${fromCache ? `<div class="cache-notice">Cached · <a id="linkFresh" href="#">Run fresh</a></div>` : ''}
     <div class="digest-header">
+      ${communityName ? `<div class="digest-date" style="margin-bottom:3px">🏘 <a href="${esc(communityUrl)}" target="_blank" style="color:var(--accent);text-decoration:none">${esc(communityName)}</a></div>` : ''}
       <div class="digest-date">📅 ${esc(digest.digest_date || '')}</div>
       <div class="summary">${esc(digest.quick_summary || '')}</div>
       <div class="stats-row">
