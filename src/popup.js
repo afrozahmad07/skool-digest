@@ -108,21 +108,27 @@ async function runDigest() {
   if (isRunning) return;
   isRunning = true;
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
+  // Use active tab if it's Skool, otherwise find any open Skool tab
+  let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url?.includes('skool.com')) {
-    document.getElementById('digestBody').innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">👆</div>
-        <div class="empty-title">Open Skool First</div>
-        <div class="empty-text">Navigate to your Skool community feed, then click the extension.</div>
-        <button class="run-btn" style="margin-top:12px" id="btnOpenSkool">Open Community</button>
-      </div>`;
-    document.getElementById('btnOpenSkool')?.addEventListener('click', () =>
-      chrome.tabs.create({ url: settings.communityUrl })
-    );
-    isRunning = false;
-    return;
+    const [skoolTab] = await chrome.tabs.query({ url: 'https://www.skool.com/*' });
+    if (skoolTab) {
+      tab = skoolTab;
+      await chrome.tabs.update(skoolTab.id, { active: true });
+    } else {
+      document.getElementById('digestBody').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">👆</div>
+          <div class="empty-title">Open Skool First</div>
+          <div class="empty-text">No Skool tab found. Open your community feed in any tab and try again.</div>
+          <button class="run-btn" style="margin-top:12px" id="btnOpenSkool">Open Skool</button>
+        </div>`;
+      document.getElementById('btnOpenSkool')?.addEventListener('click', () =>
+        chrome.tabs.create({ url: 'https://www.skool.com' })
+      );
+      isRunning = false;
+      return;
+    }
   }
 
   const providerName = PROVIDERS[settings.provider]?.name || 'AI';
@@ -432,7 +438,6 @@ function setupSettings() {
   document.getElementById('inputAnthropic').value = settings.anthropicKey || '';
   document.getElementById('inputOpenAI').value    = settings.openaiKey    || '';
   document.getElementById('inputGemini').value    = settings.geminiKey    || '';
-  document.getElementById('inputCommunity').value = settings.communityUrl || '';
   renderMembers();
 }
 
@@ -472,7 +477,6 @@ async function saveSettings() {
   settings.anthropicKey = document.getElementById('inputAnthropic').value.trim();
   settings.openaiKey    = document.getElementById('inputOpenAI').value.trim();
   settings.geminiKey    = document.getElementById('inputGemini').value.trim();
-  settings.communityUrl = document.getElementById('inputCommunity').value.trim();
   await Storage.saveSettings(settings);
   const confirm = document.getElementById('saveConfirm');
   confirm.style.opacity = '1';
