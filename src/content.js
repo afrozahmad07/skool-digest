@@ -2,15 +2,36 @@
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'scrapePosts') {
-    try {
-      const result = scrapePosts();
-      sendResponse(result);
-    } catch (e) {
-      sendResponse({ posts: [], error: e.message, debug: ['Error: ' + e.message] });
-    }
-    return true;
+    // Auto-scroll to trigger lazy-loading, then scrape
+    autoScrollThenScrape().then(sendResponse).catch(e =>
+      sendResponse({ posts: [], error: e.message, debug: ['Error: ' + e.message] })
+    );
+    return true; // keep channel open for async response
   }
 });
+
+// Scroll down in steps to trigger Skool's lazy loading, then scroll back and scrape
+async function autoScrollThenScrape() {
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+  const scrollable = document.querySelector('[class*="feed"], [class*="posts"], main, .content') || document.documentElement;
+
+  const originalY = window.scrollY;
+
+  // Scroll down in 3 steps to load more posts
+  for (let i = 1; i <= 3; i++) {
+    window.scrollTo({ top: i * 800, behavior: 'smooth' });
+    await delay(400);
+  }
+
+  // Brief pause for content to render
+  await delay(600);
+
+  // Scroll back to top
+  window.scrollTo({ top: originalY, behavior: 'instant' });
+  await delay(200);
+
+  return scrapePosts();
+}
 
 // ── Main scraper ──
 function scrapePosts() {

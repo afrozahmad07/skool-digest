@@ -11,7 +11,12 @@ let isDark = true;
 // ── Boot ──
 document.addEventListener('DOMContentLoaded', async () => {
   settings = await Storage.getSettings();
-  
+
+  // Show version from manifest
+  const v = chrome.runtime.getManifest().version;
+  const vEl = document.getElementById('headerVersion');
+  if (vEl) vEl.textContent = `v${v}`;
+
   // Load theme preference
   const themeData = await Storage.get(['theme']);
   isDark = themeData.theme !== 'light';
@@ -149,7 +154,7 @@ async function runDigest() {
   }
 
   const providerName = PROVIDERS[settings.provider]?.name || 'AI';
-  setStatus('Scanning feed…');
+  setStatus('Loading feed posts…');
 
   try {
     // content.js is already injected via manifest content_scripts — no need to re-inject
@@ -159,7 +164,23 @@ async function runDigest() {
     const pageUrl = result?.pageUrl || tab.url || '';
 
     if (posts.length === 0) {
-      throw new Error(`No posts found.\nDebug: ${debug.join(' | ')}\n\nMake sure you are on the community feed page.`);
+      document.getElementById('digestBody').innerHTML = `
+        <div class="run-wrap">
+          <div class="empty-state" style="padding:20px 0">
+            <div class="empty-icon">😶</div>
+            <div class="empty-title">No posts found</div>
+            <div class="empty-text" style="margin-bottom:14px">
+              Try these before retrying:<br><br>
+              1. Make sure the Skool feed is fully loaded<br>
+              2. Scroll down the feed a little, then come back<br>
+              3. Try sorting by <strong>New</strong> or <strong>Top</strong>
+            </div>
+          </div>
+          <button class="run-btn" id="btnRun">Try Again</button>
+        </div>`;
+      document.getElementById('btnRun')?.addEventListener('click', runDigest);
+      isRunning = false;
+      return;
     }
 
     setStatus(`Found ${posts.length} posts · Sending to ${providerName}…`, true);
